@@ -1,16 +1,42 @@
 const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } = require('discord.js');
+const { Sequelize, DataTypes } = require('sequelize');
+const path = require('path');
 require('dotenv').config();
+
+// Initialize Sequelize
+const sequelize = new Sequelize({
+  dialect: 'sqlite',
+  storage: path.resolve(__dirname, 'database.sqlite'), // Ensure this path is correct
+});
+
+// Define the Config model
+const Config = sequelize.define('Config', {
+  guildId: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+  confessionChannelId: DataTypes.STRING,
+  adminChannelId: DataTypes.STRING,
+  reportChannelId: DataTypes.STRING,
+  adminId: DataTypes.STRING,
+  ownerId: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }
+});
+
+// Sync models
+sequelize.sync().then(() => {
+  console.log('Database synchronized.');
+}).catch(error => {
+  console.error('Error synchronizing database:', error);
+});
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages] });
 
-// Configuration store
-const config = {
-  confessionChannelId: '1267848120419487826', // Public confession channel
-  adminChannelId: '1267848199453016095',     // Admin channel to see who confessed
-  reportChannelId: '1111711067152855101',
-  adminId: '', // Admin who can see detailed confessions
-  ownerId: '454578346517463042' // Your Discord User ID
-};
+// Hardcoded owner ID
+const ownerId = '454578346517463042'; // Replace with your actual Discord user ID
 
 // Define commands
 const commands = [
@@ -66,12 +92,6 @@ const commands = [
         description: 'The ID of the admin who can see detailed confessions',
         required: false,
       },
-      {
-        name: 'owner_id',
-        type: 3, // STRING type
-        description: 'Your Discord User ID',
-        required: false,
-      },
     ],
   },
 ];
@@ -81,12 +101,10 @@ const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
 (async () => {
   try {
     console.log('Started refreshing application (/) commands.');
-
     await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
-
     console.log('Successfully reloaded application (/) commands.');
   } catch (error) {
-    console.error(error);
+    console.error('Error refreshing application commands:', error);
   }
 })();
 
@@ -95,29 +113,39 @@ client.once('ready', async () => {
 });
 
 client.on('interactionCreate', async interaction => {
+  console.log(`Received command: ${interaction.commandName}`);
+
   if (!interaction.isCommand()) return;
 
   const { commandName, options, user } = interaction;
 
-  if (commandName === 'confess') {
-    if (!config.confessionChannelId || !config.adminChannelId) {
-      await interaction.reply({ content: 'Confession channels are not set. Please contact an admin.', ephemeral: true });
-      return;
-    }
+  try {
+    if (commandName === 'confess') {
+      console.log('Handling confess command');
 
-    const confession = options.getString('message');
+      const config = await Config.findOne({ where: { guildId: interaction.guildId } });
 
-    // Create confession embed
-    const confessionEmbed = new EmbedBuilder()
-      .setColor('#0099ff')
-      .setTitle('Anonymous Confession')
-      .setDescription(`"${confession}"`)
-      .setFooter({ text: `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}` });
+      if (!config || !config.confessionChannelId || !config.adminChannelId) {
+        await interaction.reply({ content: 'Confession channels are not set. Please contact an admin.', ephemeral: true });
+        return;
+      }
 
-    try {
+      const confession = options.getString('message');
+
+      // Create confession embed
+      const confessionEmbed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('Anonymous Confession')
+        .setDescription(`"${confession}"`)
+        .setFooter({ text: `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}` });
+
       // Send confession to the public confession channel
-      const confessionChannel = await client.channels.fetch(config.confessionChannelId);
-      await confessionChannel.send({ embeds: [confessionEmbed] });
+      try {
+        const confessionChannel = await client.channels.fetch(config.confessionChannelId);
+        await confessionChannel.send({ embeds: [confessionEmbed] });
+      } catch (err) {
+        console.error('Error fetching or sending message to confession channel:', err);
+      }
 
       // Send details to the admin channel
       if (config.adminChannelId && config.adminId) {
@@ -135,66 +163,85 @@ client.on('interactionCreate', async interaction => {
       }
 
       // Send confession to bot owner's DM
-      if (config.ownerId) {
-        try {
-          const owner = await client.users.fetch(config.ownerId);
-          const dmEmbed = new EmbedBuilder()
-            .setColor('#0099ff')
-            .setTitle('New Anonymous Confession')
-            .setDescription(`Confession from: <@${user.id}>\n\n"${confession}"`)
-            .setFooter({ text: `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}` });
-          await owner.send({ embeds: [dmEmbed] });
-        } catch (err) {
-          console.error('Error sending DM to owner:', err);
-        }
+      try {
+        const owner = await client.users.fetch(ownerId);
+        const dmEmbed = new EmbedBuilder()
+          .setColor('#0099ff')
+          .setTitle('New Anonymous Confession')
+          .setDescription(`Confession from: <@${user.id}>\n\n"${confession}"`)
+          .setFooter({ text: `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}` });
+        await owner.send({ embeds: [dmEmbed] });
+      } catch (err) {
+        console.error('Error sending DM to owner:', err);
       }
 
       await interaction.reply({ content: 'Your confession has been posted anonymously.', ephemeral: true });
-    } catch (error) {
-      console.error('Error posting confession:', error);
-      await interaction.reply({ content: 'There was an error posting your confession. Please try again later.', ephemeral: true });
-    }
-  }
-
-  if (commandName === 'report') {
-    if (!config.reportChannelId) {
-      await interaction.reply({ content: 'Report channel is not set. Please contact an admin.', ephemeral: true });
-      return;
     }
 
-    const messageLink = options.getString('message_link');
+    if (commandName === 'report') {
+      console.log('Handling report command');
 
-    try {
-      const reportChannel = await client.channels.fetch(config.reportChannelId);
-      await reportChannel.send(`Report received:\nMessage Link: ${messageLink}\nReported by: <@${interaction.user.id}>`);
-      await interaction.reply({ content: 'Your report has been submitted.', ephemeral: true });
-    } catch (error) {
-      console.error('Error reporting confession:', error);
-      await interaction.reply({ content: 'There was an error submitting your report. Please try again later.', ephemeral: true });
+      const config = await Config.findOne({ where: { guildId: interaction.guildId } });
+
+      if (!config || !config.reportChannelId) {
+        await interaction.reply({ content: 'Report channel is not set. Please contact an admin.', ephemeral: true });
+        return;
+      }
+
+      const messageLink = options.getString('message_link');
+
+      try {
+        const reportChannel = await client.channels.fetch(config.reportChannelId);
+        await reportChannel.send(`Report received:\nMessage Link: ${messageLink}\nReported by: <@${interaction.user.id}>`);
+        await interaction.reply({ content: 'Your report has been submitted.', ephemeral: true });
+      } catch (error) {
+        console.error('Error reporting confession:', error);
+        await interaction.reply({ content: 'There was an error submitting your report. Please try again later.', ephemeral: true });
+      }
     }
-  }
 
-  if (commandName === 'setconfig') {
-    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
-      await interaction.reply({ content: 'You do not have permission to set configurations.', ephemeral: true });
-      return;
+    if (commandName === 'setconfig') {
+      if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+        await interaction.reply({ content: 'You do not have permission to set configurations.', ephemeral: true });
+        return;
+      }
+
+      console.log('Handling setconfig command');
+
+      const confessionChannelId = options.getString('confession_channel_id');
+      const adminChannelId = options.getString('admin_channel_id');
+      const reportChannelId = options.getString('report_channel_id');
+      const adminId = options.getString('admin_id');
+
+      let config = await Config.findOne({ where: { guildId: interaction.guildId } });
+
+      if (!config) {
+        // Create a new config entry with the ownerId
+        config = await Config.create({
+          guildId: interaction.guildId,
+          ownerId: ownerId, // Set the ownerId here
+          confessionChannelId,
+          adminChannelId,
+          reportChannelId,
+          adminId
+        });
+      } else {
+        // Update existing configuration
+        if (confessionChannelId) config.confessionChannelId = confessionChannelId;
+        if (adminChannelId) config.adminChannelId = adminChannelId;
+        if (reportChannelId) config.reportChannelId = reportChannelId;
+        if (adminId) config.adminId = adminId;
+
+        await config.save();
+      }
+
+      await interaction.reply({ content: 'Configuration updated successfully.', ephemeral: true });
     }
 
-    const confessionChannelId = options.getString('confession_channel_id');
-    const adminChannelId = options.getString('admin_channel_id');
-    const reportChannelId = options.getString('report_channel_id');
-    const adminId = options.getString('admin_id');
-    const ownerId = options.getString('owner_id');
-
-    if (confessionChannelId) config.confessionChannelId = confessionChannelId;
-    if (adminChannelId) config.adminChannelId = adminChannelId;
-    if (reportChannelId) config.reportChannelId = reportChannelId;
-    if (adminId) config.adminId = adminId;
-    if (ownerId) config.ownerId = ownerId;
-
-    await interaction.reply({ content: 'Configuration updated successfully.', ephemeral: true });
+  } catch (error) {
+    console.error('Error handling command:', error);
+    await interaction.reply({ content: 'There was an error processing your command. Please try again later.', ephemeral: true });
   }
 });
 
-// Log in to Discord with your app's token
 client.login(process.env.BOT_TOKEN);
