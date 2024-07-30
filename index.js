@@ -1,13 +1,15 @@
 const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } = require('discord.js');
 require('dotenv').config();
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages] });
 
 // Configuration store
 const config = {
-  premiumRoleId: '830359793285595191',
-  confessionChannelId: '947343203445641297',
-  reportChannelId: '830359793285595193'
+  confessionChannelId: '1267848120419487826', // Public confession channel
+  adminChannelId: '1267848199453016095',     // Admin channel to see who confessed
+  reportChannelId: '1111711067152855101',
+  adminId: '', // Admin who can see detailed confessions
+  ownerId: '454578346517463042' // Your Discord User ID
 };
 
 // Define commands
@@ -41,21 +43,33 @@ const commands = [
     description: 'Set bot configuration',
     options: [
       {
-        name: 'premium_role_id',
-        type: 3, // STRING type
-        description: 'The role ID for premium users',
-        required: false,
-      },
-      {
         name: 'confession_channel_id',
         type: 3, // STRING type
         description: 'The channel ID for confessions',
         required: false,
       },
       {
+        name: 'admin_channel_id',
+        type: 3, // STRING type
+        description: 'The channel ID for admin confessions',
+        required: false,
+      },
+      {
         name: 'report_channel_id',
         type: 3, // STRING type
         description: 'The channel ID for reports',
+        required: false,
+      },
+      {
+        name: 'admin_id',
+        type: 3, // STRING type
+        description: 'The ID of the admin who can see detailed confessions',
+        required: false,
+      },
+      {
+        name: 'owner_id',
+        type: 3, // STRING type
+        description: 'Your Discord User ID',
         required: false,
       },
     ],
@@ -78,19 +92,6 @@ const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
 
 client.once('ready', async () => {
   console.log('Bot is online!');
-
-  // Fetch and log roles in the guild
-  const guildId = '830359793079156756'; // Your guild (server) ID
-  const guild = client.guilds.cache.get(guildId);
-
-  if (guild) {
-    console.log(`Roles in guild: ${guild.name}`);
-    guild.roles.cache.forEach(role => {
-      console.log(`Role name: ${role.name}, ID: ${role.id}`);
-    });
-  } else {
-    console.log('Guild not found');
-  }
 });
 
 client.on('interactionCreate', async interaction => {
@@ -99,35 +100,55 @@ client.on('interactionCreate', async interaction => {
   const { commandName, options, user } = interaction;
 
   if (commandName === 'confess') {
-    if (!config.confessionChannelId) {
-      await interaction.reply({ content: 'Confession channel is not set. Please contact an admin.', ephemeral: true });
+    if (!config.confessionChannelId || !config.adminChannelId) {
+      await interaction.reply({ content: 'Confession channels are not set. Please contact an admin.', ephemeral: true });
       return;
     }
 
     const confession = options.getString('message');
-    const isPremium = config.premiumRoleId && interaction.member.roles.cache.has(config.premiumRoleId);
 
-    // Moderation check (optional)
-    if (confession.includes('banned_word')) {
-      await interaction.reply({ content: 'Your confession contains inappropriate content and cannot be posted.', ephemeral: true });
-      return;
-    }
-
-    // Create an embed for the confession message
+    // Create confession embed
     const confessionEmbed = new EmbedBuilder()
       .setColor('#0099ff')
       .setTitle('Anonymous Confession')
       .setDescription(`"${confession}"`)
-      .addFields({ name: '❗ Note:', value: 'If this confession is ToS-breaking or overtly hateful, you can report it using `/report [message link]`', inline: false })
       .setFooter({ text: `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}` });
 
-    if (isPremium) {
-      confessionEmbed.addFields({ name: 'Confessor:', value: `<@${user.id}>`, inline: false }); // Show who confessed if premium
-    }
-
     try {
+      // Send confession to the public confession channel
       const confessionChannel = await client.channels.fetch(config.confessionChannelId);
       await confessionChannel.send({ embeds: [confessionEmbed] });
+
+      // Send details to the admin channel
+      if (config.adminChannelId && config.adminId) {
+        try {
+          const adminChannel = await client.channels.fetch(config.adminChannelId);
+          const adminEmbed = new EmbedBuilder()
+            .setColor('#ff0000')
+            .setTitle('Confession Details')
+            .setDescription(`Confession from: <@${user.id}>\n\n"${confession}"`)
+            .setFooter({ text: `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}` });
+          await adminChannel.send({ embeds: [adminEmbed] });
+        } catch (err) {
+          console.error('Error fetching or sending message to admin channel:', err);
+        }
+      }
+
+      // Send confession to bot owner's DM
+      if (config.ownerId) {
+        try {
+          const owner = await client.users.fetch(config.ownerId);
+          const dmEmbed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('New Anonymous Confession')
+            .setDescription(`Confession from: <@${user.id}>\n\n"${confession}"`)
+            .setFooter({ text: `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}` });
+          await owner.send({ embeds: [dmEmbed] });
+        } catch (err) {
+          console.error('Error sending DM to owner:', err);
+        }
+      }
+
       await interaction.reply({ content: 'Your confession has been posted anonymously.', ephemeral: true });
     } catch (error) {
       console.error('Error posting confession:', error);
@@ -159,13 +180,17 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    const premiumRoleId = options.getString('premium_role_id');
     const confessionChannelId = options.getString('confession_channel_id');
+    const adminChannelId = options.getString('admin_channel_id');
     const reportChannelId = options.getString('report_channel_id');
+    const adminId = options.getString('admin_id');
+    const ownerId = options.getString('owner_id');
 
-    if (premiumRoleId) config.premiumRoleId = premiumRoleId;
     if (confessionChannelId) config.confessionChannelId = confessionChannelId;
+    if (adminChannelId) config.adminChannelId = adminChannelId;
     if (reportChannelId) config.reportChannelId = reportChannelId;
+    if (adminId) config.adminId = adminId;
+    if (ownerId) config.ownerId = ownerId;
 
     await interaction.reply({ content: 'Configuration updated successfully.', ephemeral: true });
   }
