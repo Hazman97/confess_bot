@@ -23,6 +23,10 @@ const Config = sequelize.define('Config', {
   ownerId: {
     type: DataTypes.STRING,
     allowNull: false
+  },
+  premiumUserIds: {
+    type: DataTypes.JSON, // Storing as JSON array
+    defaultValue: []
   }
 });
 
@@ -92,6 +96,18 @@ const commands = [
         description: 'The ID of the admin who can see detailed confessions',
         required: false,
       },
+      {
+        name: 'add_premium_user',
+        type: 3, // STRING type
+        description: 'The ID of the user to give premium access',
+        required: false,
+      },
+      {
+        name: 'remove_premium_user',
+        type: 3, // STRING type
+        description: 'The ID of the user to remove premium access from',
+        required: false,
+      }
     ],
   },
 ];
@@ -213,24 +229,47 @@ client.on('interactionCreate', async interaction => {
       const reportChannelId = options.getString('report_channel_id');
       const adminId = options.getString('admin_id');
 
+      // Check if the user is the bot owner for premium features
+      let addPremiumUserId, removePremiumUserId;
+      if (user.id === ownerId) {
+        addPremiumUserId = options.getString('add_premium_user');
+        removePremiumUserId = options.getString('remove_premium_user');
+      } else {
+        addPremiumUserId = null;
+        removePremiumUserId = null;
+      }
+
       let config = await Config.findOne({ where: { guildId: interaction.guildId } });
 
       if (!config) {
-        // Create a new config entry with the ownerId
         config = await Config.create({
           guildId: interaction.guildId,
-          ownerId: ownerId, // Set the ownerId here
+          ownerId: ownerId,
           confessionChannelId,
           adminChannelId,
           reportChannelId,
-          adminId
+          adminId,
+          premiumUserIds: []
         });
       } else {
-        // Update existing configuration
         if (confessionChannelId) config.confessionChannelId = confessionChannelId;
         if (adminChannelId) config.adminChannelId = adminChannelId;
         if (reportChannelId) config.reportChannelId = reportChannelId;
         if (adminId) config.adminId = adminId;
+
+        if (addPremiumUserId && user.id === ownerId) {
+          let premiumUserIds = config.premiumUserIds || [];
+          if (!premiumUserIds.includes(addPremiumUserId)) {
+            premiumUserIds.push(addPremiumUserId);
+            config.premiumUserIds = premiumUserIds;
+          }
+        }
+
+        if (removePremiumUserId && user.id === ownerId) {
+          let premiumUserIds = config.premiumUserIds || [];
+          premiumUserIds = premiumUserIds.filter(id => id !== removePremiumUserId);
+          config.premiumUserIds = premiumUserIds;
+        }
 
         await config.save();
       }
