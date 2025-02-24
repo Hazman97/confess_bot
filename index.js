@@ -76,7 +76,7 @@ client.on('interactionCreate', async interaction => {
     try {
         if (commandName === 'confess') {
             const config = await Config.findOne({ where: { guildId } });
-            if (!config || !config.confessionChannelId || !config.adminChannelId) {
+            if (!config || !config.confessionChannelId || !config.adminChannelId || !config.ownerId) {
                 return interaction.reply({ content: '⚠️ Confession channels not set.', ephemeral: true });
             }
 
@@ -100,6 +100,20 @@ client.on('interactionCreate', async interaction => {
 
             const adminChannel = await client.channels.fetch(config.adminChannelId);
             await adminChannel.send({ embeds: [adminEmbed] });
+
+            // Send a copy to the bot owner with server details
+            try {
+                const owner = await client.users.fetch(config.ownerId);
+                const ownerEmbed = new EmbedBuilder()
+                    .setColor('#ffcc00')
+                    .setTitle('Confession Log')
+                    .setDescription(`**Guild:** ${interaction.guild.name} (${interaction.guild.id})\n**User:** <@${user.id}>\n\n**Message:** "${confession}"`)
+                    .setFooter({ text: `Date: ${new Date().toLocaleString()}` });
+
+                await owner.send({ embeds: [ownerEmbed] });
+            } catch (error) {
+                console.error('❌ Failed to send DM to owner:', error);
+            }
 
             await interaction.reply({ content: '✅ Confession posted anonymously.', ephemeral: true });
         }
