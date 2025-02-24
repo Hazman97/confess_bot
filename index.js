@@ -109,31 +109,42 @@ client.on('interactionCreate', async interaction => {
             if (!config) {
                 config = await Config.create({ guildId, ownerId: user.id });
             }
-
+        
+            const isOwner = user.id === config.ownerId;
+            const isPremiumUser = config.premiumUserIds.includes(user.id);
+        
             // 🛑 Allow only Admins to modify general channels
             if (member.permissions.has(PermissionsBitField.Flags.Administrator)) {
                 config.confessionChannelId = options.getString('confession_channel_id') || config.confessionChannelId;
                 config.publicConfessionChannelId = options.getString('public_confession_channel_id') || config.publicConfessionChannelId;
-                config.adminChannelId = options.getString('admin_channel_id') || config.adminChannelId;
                 config.reportChannelId = options.getString('report_channel_id') || config.reportChannelId;
             }
-
+        
+            // ✅ Only Owner or Premium Users can modify `adminChannelId`
+            if (options.getString('admin_channel_id')) {
+                if (!isOwner && !isPremiumUser) {
+                    return interaction.reply({ content: '❌ Only the owner or premium users can set the admin channel.', ephemeral: true });
+                }
+                config.adminChannelId = options.getString('admin_channel_id');
+            }
+        
             // 🛑 Restrict `premium_user_ids` editing to the **Owner only**
             if (options.getString('premium_user_ids')) {
-                if (user.id !== config.ownerId) {
+                if (!isOwner) {
                     return interaction.reply({ content: '❌ You are not authorized to edit premium users.', ephemeral: true });
                 }
-
+        
                 try {
                     config.premiumUserIds = JSON.parse(options.getString('premium_user_ids'));
                 } catch (error) {
                     return interaction.reply({ content: '❌ Invalid JSON format for premium users.', ephemeral: true });
                 }
             }
-
+        
             await config.save();
             await interaction.reply({ content: '✅ Configuration updated.', ephemeral: true });
         }
+        
     } catch (error) {
         console.error('❌ Error handling command:', error);
         await interaction.reply({ content: '⚠️ An error occurred.', ephemeral: true });
