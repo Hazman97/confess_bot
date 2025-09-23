@@ -1,16 +1,14 @@
-FROM node:18-alpine
+FROM node:18-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --production
+# Install build dependencies
+RUN apt-get update && apt-get install -y python3 make g++ sqlite3 \
+    && npm install --production --build-from-source sqlite3 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy the rest of the code
 COPY . .
 
-# Start bot
 CMD ["node", "index.js"]
