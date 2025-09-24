@@ -4,11 +4,18 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Install build deps + rebuild sqlite3 for ARM
-RUN apt-get update && apt-get install -y python3 make g++ sqlite3 build-essential \
+# Install build dependencies (for sqlite3 compilation)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       python3 \
+       make \
+       g++ \
+       pkg-config \
+       libsqlite3-dev \
     && npm install --production \
     && npm rebuild sqlite3 --build-from-source \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get purge -y --auto-remove make g++ pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
