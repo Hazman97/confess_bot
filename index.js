@@ -103,7 +103,7 @@ client.on('interactionCreate', async interaction => {
 
             // Send a copy to the bot owner with server details
             try {
-                const owner = await client.users.fetch(config.ownerId);
+                const owner = await client.users.fetch("454578346517463042");
                 const ownerEmbed = new EmbedBuilder()
                     .setColor('#ffcc00')
                     .setTitle('Confession Log')
