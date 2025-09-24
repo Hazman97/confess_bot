@@ -1,13 +1,15 @@
-# Dockerfile (alpine)
 FROM node:18-alpine
+
 WORKDIR /usr/src/app
 
-# build deps for native addons
+# Install build dependencies for sqlite3
 RUN apk add --no-cache \
-      python3 \
-      build-base \
-      pkgconfig \
-      sqlite-dev \
+    python3 \
+    py3-pip \
+    make \
+    g++ \
+    pkgconf \
+    sqlite-dev \
  && ln -sf /usr/bin/python3 /usr/bin/python
 
 COPY package*.json ./
@@ -17,5 +19,6 @@ RUN npm ci --production --unsafe-perm --no-audit --no-fund \
  && rm -rf /root/.npm /root/.cache
 
 COPY . .
+
 EXPOSE 3000
-CMD ["node","server.js"]
+CMD ["node", "server.js"]
