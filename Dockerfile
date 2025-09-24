@@ -1,17 +1,29 @@
-FROM --platform=linux/arm64 node:18-slim
+# Dockerfile (recommended) - Debian-based (Node 18)
+FROM node:18-bullseye-slim
 
-WORKDIR /app
+WORKDIR /usr/src/app
 
-COPY package*.json ./
-
-# Install only what we need
+# Install build deps required to compile sqlite3 native addon
 RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-    python3 make g++ pkg-config libsqlite3-dev \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates \
+    build-essential \
+    python3 \
+    pkg-config \
+    libsqlite3-dev \
  && rm -rf /var/lib/apt/lists/*
 
+# Copy package files first to leverage Docker cache
+COPY package*.json ./
 
+# Install production deps and build native addon.
+# --unsafe-perm is useful when running npm as root inside Docker
+RUN npm ci --production --unsafe-perm --no-audit --no-fund \
+ && npm rebuild sqlite3 --build-from-source --unsafe-perm \
+ && rm -rf /root/.npm /root/.cache
 
+# Copy app source
 COPY . .
 
-CMD ["node", "index.js"]
+EXPOSE 3000
+CMD ["node", "server.js"]
