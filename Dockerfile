@@ -1,14 +1,23 @@
 # Use Node.js Alpine image for ARM64 (Raspberry Pi 4)
 FROM node:18-alpine
 
+# Install build dependencies for native modules
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    sqlite \
+    sqlite-dev
+
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --production
+# Clear npm cache and install dependencies
+RUN npm cache clean --force && \
+    npm install --production --no-optional --verbose
 
 # Copy application files
 COPY . .
