@@ -2,62 +2,26 @@ version: '3.8'
 
 services:
   discord-bot:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    image: node:18
     container_name: discord-confession-bot
     restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install --production && node index.js"
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - CLIENT_ID=${CLIENT_ID}
       - NODE_ENV=production
-      - TZ=Asia/Kuala_Lumpur
     volumes:
-      # Persistent storage for SQLite database
+      - .:/app
       - discord-bot-data:/app/data
-      # Optional: Mount logs directory
-      - discord-bot-logs:/app/logs
+      - /app/node_modules
     networks:
       - discord-bot-network
-    # Resource limits for Raspberry Pi
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-        reservations:
-          memory: 256M
-          cpus: '0.25'
-    # Health check to monitor bot status
-    healthcheck:
-      test: ["CMD", "node", "-e", "console.log('Health check passed'); process.exit(0)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    # Labels for better organization in Portainer
-    labels:
-      - "traefik.enable=false"
-      - "com.docker.compose.project=discord-bot"
-      - "description=Discord Anonymous Confession Bot"
 
 volumes:
   discord-bot-data:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/discord-bot/data
-  discord-bot-logs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind  
-      device: /opt/discord-bot/logs
 
 networks:
   discord-bot-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
