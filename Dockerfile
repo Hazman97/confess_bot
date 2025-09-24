@@ -4,10 +4,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Install build deps
+# Install only needed build deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    apt-transport-https \
     python3 \
     make \
     g++ \
