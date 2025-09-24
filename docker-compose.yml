@@ -4,7 +4,7 @@ services:
   confess_bot:
     build: .
     container_name: confess_bot
-    platform: linux/arm64   # <-- force build for CM4 ARM64
+    platform: linux/arm64    # <-- force correct arch
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - CLIENT_ID=${CLIENT_ID}

@@ -1,13 +1,13 @@
-# Use the Node 18 image that matches the target architecture (ARM on CM4)
 FROM --platform=linux/arm64 node:18-slim
 
 WORKDIR /app
 
 COPY package*.json ./
 
-# Install build dependencies (needed for sqlite3 build)
+# Install build deps + rebuild sqlite3 for ARM
 RUN apt-get update && apt-get install -y python3 make g++ sqlite3 build-essential \
-    && npm install --production --build-from-source sqlite3 \
+    && npm install --production \
+    && npm rebuild sqlite3 --build-from-source \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY . .
