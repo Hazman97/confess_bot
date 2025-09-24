@@ -1,29 +1,23 @@
-# Dockerfile (recommended) - Debian-based (Node 18)
-FROM node:18-bullseye-slim
-
+# Dockerfile (multi-stage)
+FROM node:18-bullseye-slim AS builder
 WORKDIR /usr/src/app
-
-# Install build deps required to compile sqlite3 native addon
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    ca-certificates \
-    build-essential \
-    python3 \
-    pkg-config \
-    libsqlite3-dev \
+    build-essential python3 pkg-config libsqlite3-dev \
  && rm -rf /var/lib/apt/lists/*
-
-# Copy package files first to leverage Docker cache
 COPY package*.json ./
-
-# Install production deps and build native addon.
-# --unsafe-perm is useful when running npm as root inside Docker
-RUN npm ci --production --unsafe-perm --no-audit --no-fund \
- && npm rebuild sqlite3 --build-from-source --unsafe-perm \
- && rm -rf /root/.npm /root/.cache
-
-# Copy app source
+RUN npm ci --unsafe-perm --no-audit --no-fund
 COPY . .
+RUN npm rebuild sqlite3 --build-from-source --unsafe-perm
 
+FROM node:18-bullseye-slim AS runtime
+WORKDIR /usr/src/app
+# install runtime sqlite shared lib only
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    libsqlite3-0 ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/src/app ./
+USER node
 EXPOSE 3000
 CMD ["node", "server.js"]
