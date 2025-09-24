@@ -6,11 +6,10 @@ COPY package*.json ./
 
 # Install only what we need
 RUN apt-get update \
- && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+ && apt-get install -y --no-install-recommends \
     python3 make g++ pkg-config libsqlite3-dev \
- && rm -rf /var/lib/apt/lists/* \
- && npm install --production \
- && npm rebuild sqlite3 --build-from-source
+ && rm -rf /var/lib/apt/lists/*
+
 
 
 COPY . .
