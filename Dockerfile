@@ -1,4 +1,4 @@
-# Use Node.js Alpine image for ARM64 (Raspberry Pi 4)
+# Use Node.js image for ARM64 (Raspberry Pi 4)
 FROM node:18-alpine
 
 # Install build dependencies for native modules
@@ -12,21 +12,14 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Copy package files first for better caching
-COPY package*.json ./
-
-# Clear npm cache and install dependencies
-RUN npm cache clean --force && \
-    npm install --production --no-optional --verbose
-
-# Copy application files
+# Copy ALL files to the container first
 COPY . .
+
+# Now install dependencies (package.json should be available)
+RUN npm install --omit=dev --verbose
 
 # Create directory for SQLite database with proper permissions
 RUN mkdir -p /app/data && chmod 755 /app/data
-
-# Expose port (if you plan to add health checks later)
-EXPOSE 3000
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -37,6 +30,9 @@ RUN chown -R discordbot:nodejs /app
 
 # Switch to non-root user
 USER discordbot
+
+# Expose port (if you plan to add health checks later)
+EXPOSE 3000
 
 # Start the bot
 CMD ["node", "index.js"]
