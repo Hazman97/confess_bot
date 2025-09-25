@@ -76,7 +76,7 @@ client.on('interactionCreate', async interaction => {
     try {
         if (commandName === 'confess') {
             const config = await Config.findOne({ where: { guildId } });
-            if (!config || !config.confessionChannelId || !config.adminChannelId || !config.ownerId) {
+            if (!config || !config.confessionChannelId ) {
                 return interaction.reply({ content: '⚠️ Confession channels not set.', ephemeral: true });
             }
 
