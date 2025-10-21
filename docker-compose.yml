@@ -15,17 +15,18 @@ services:
       - NODE_ENV=production
       - TZ=Asia/Kuala_Lumpur
     volumes:
-      # FIX: Use the simple bind mount syntax for host path persistence.
-      # This tells Docker explicitly to create a bind mount from the host path.
-      - /opt/discord-bot/data:/app/data
+      # FIX: Changed host path from /opt/discord-bot/data to a location 
+      #       assumed to be writable by Docker Snap (e.g., /home/docker/).
+      #       *** You must ensure this HOST path exists and is writable. ***
+      - /home/docker/discord-bot/data:/app/data
       
-      # FIX: Use the simple bind mount syntax for logs directory.
-      - /opt/discord-bot/logs:/app/logs
+      # FIX: Changed host path for logs directory to an accessible location.
+      - /home/docker/discord-bot/logs:/app/logs
       
     networks:
       - discord-bot-network
       
-    # Resource limits for Raspberry Pi (Deploy section is for Swarm mode, but fine for local testing)
+    # Resource limits for Raspberry Pi (Note: 'deploy' requires Swarm mode for full functionality)
     deploy:
       resources:
         limits:
@@ -49,10 +50,8 @@ services:
       - "com.docker.compose.project=discord-bot"
       - "description=Discord Anonymous Confession Bot"
 
-# --- REMOVED VOLUME DEFINITIONS ---
-# Removed the complex 'driver_opts' definitions as they were forcing bind mounts
-# which failed when the host path was missing. The simple syntax in services
-# handles this creation more gracefully.
+# Removed the empty 'volumes' section that was at the end of your original file,
+# as we are now using simple bind mounts directly in the service block.
 
 networks:
   discord-bot-network:
