@@ -15,13 +15,17 @@ services:
       - NODE_ENV=production
       - TZ=Asia/Kuala_Lumpur
     volumes:
-      # Persistent storage for SQLite database
-      - discord-bot-data:/app/data
-      # Optional: Mount logs directory
-      - discord-bot-logs:/app/logs
+      # FIX: Use the simple bind mount syntax for host path persistence.
+      # This tells Docker explicitly to create a bind mount from the host path.
+      - /opt/discord-bot/data:/app/data
+      
+      # FIX: Use the simple bind mount syntax for logs directory.
+      - /opt/discord-bot/logs:/app/logs
+      
     networks:
       - discord-bot-network
-    # Resource limits for Raspberry Pi
+      
+    # Resource limits for Raspberry Pi (Deploy section is for Swarm mode, but fine for local testing)
     deploy:
       resources:
         limits:
@@ -30,6 +34,7 @@ services:
         reservations:
           memory: 256M
           cpus: '0.25'
+          
     # Health check to monitor bot status
     healthcheck:
       test: ["CMD", "node", "-e", "console.log('Health check passed'); process.exit(0)"]
@@ -37,25 +42,17 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+      
     # Labels for better organization in Portainer
     labels:
       - "traefik.enable=false"
       - "com.docker.compose.project=discord-bot"
       - "description=Discord Anonymous Confession Bot"
 
-volumes:
-  discord-bot-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/discord-bot/data
-  discord-bot-logs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind  
-      device: /opt/discord-bot/logs
+# --- REMOVED VOLUME DEFINITIONS ---
+# Removed the complex 'driver_opts' definitions as they were forcing bind mounts
+# which failed when the host path was missing. The simple syntax in services
+# handles this creation more gracefully.
 
 networks:
   discord-bot-network:
